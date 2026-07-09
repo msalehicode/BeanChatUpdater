@@ -3,10 +3,15 @@
 
 #include <QQmlContext>
 #include "updater/updater.h"
+#include <QIcon>
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+
+    app.setWindowIcon(QIcon(":/icons/BeanChat.png"));
+    QCoreApplication::setOrganizationName("orgBeanChat");
+    QCoreApplication::setApplicationName("appBeanChat");
 
     Updater updater;
 
@@ -23,9 +28,7 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
     engine.loadFromModule("BeanChatUpdater", "Main");
 
-
     updater.start();
-
 
     return app.exec();
 }

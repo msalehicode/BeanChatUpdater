@@ -61,3 +61,8 @@ QVersionNumber Arguments::currentVersion() const
     return m_currentVersion;
 }
 
+void Arguments::setCurrentVersion(const QString &version)
+{
+    m_currentVersion = QVersionNumber::fromString(version);
+}
+

@@ -10,7 +10,17 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(appBeanChatUpdater
     main.cpp
+    app.rc #windows icon for .exe
 )
+
+
+qt_add_resources(appBeanChatUpdater resources
+    PREFIX "/"
+    FILES
+        icons/BeanChat.png
+        icons/BeanChat.ico
+)
+
 
 qt_add_qml_module(appBeanChatUpdater
     URI BeanChatUpdater
@@ -24,18 +34,17 @@ qt_add_qml_module(appBeanChatUpdater
         updater/arguments.h updater/arguments.cpp
         updater/manifest.h updater/manifest.cpp
         updater/manifestfile.h
-        SOURCES updater/downloader.h updater/downloader.cpp
-        SOURCES updater/latestresponse.h updater/latestresponse.cpp
-        SOURCES updater/filehasher.h updater/filehasher.cpp
-        SOURCES updater/fileverifier.h updater/fileverifier.cpp
+        updater/downloader.h updater/downloader.cpp
+        updater/latestresponse.h updater/latestresponse.cpp
+        updater/filehasher.h updater/filehasher.cpp
+        updater/fileverifier.h updater/fileverifier.cpp
 
 )
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
+
 set_target_properties(appBeanChatUpdater PROPERTIES
-#    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appBeanChatUpdater
+    OUTPUT_NAME "BeanChat"
+
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE

@@ -16,6 +16,7 @@ public:
     QString installDirectory() const;
     QString manifestUrl() const;
     QVersionNumber currentVersion() const;
+    void setCurrentVersion(const QString& version);
 
 private:
     bool m_repair = false;

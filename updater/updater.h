@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QDebug>
+#include <QSettings>
 
 #include "arguments.h"
 #include "manifest.h"
@@ -95,6 +96,8 @@ private:
     Manifest m_manifest;
     Downloader m_downloader;
     QVector<ManifestFile> m_downloadQueue;
+    QSettings m_settings;
+    QString m_version;
 
     //path
     QString m_tempDirectory;

@@ -10,7 +10,7 @@ Window
     height: 480
     visible: true
     title: qsTr("BeanChatUpdater")
-
+    color:"#05070b"
     Column
     {
         anchors.centerIn: parent
@@ -20,31 +20,33 @@ Window
         {
             text: updater.title
             font.pixelSize: 28
+            color:"white"
         }
 
         Text
         {
             text: updater.description
             opacity: 0.7
+            color:"white"
         }
 
         ProgressBar
         {
-            width: 350
+            width: parent.width
             value: updater.progress
         }
 
         ScrollView
         {
             id: logScroll
-            width: 500
+            width: parent.width
             height: 180
 
             TextArea
             {
                 readOnly: true
                 text: updater.log
-                color: "black"
+                color: "white"
                 wrapMode: TextEdit.Wrap
             }
         }
@@ -72,6 +74,10 @@ Window
 
         width: 400
         height: 200
+        onClosed:
+        {
+            okButton.clicked()
+        }
 
         anchors.centerIn: Overlay.overlay
 

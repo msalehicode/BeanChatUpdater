@@ -9,6 +9,13 @@
 Updater::Updater(QObject *parent)
     : QObject(parent)
 {
+    if(!m_settings.contains("App/Version"))
+        launchApplication(); //its first launch we dont know version cant call update check, so let beanChat run and on next launch would know what is current version
+    else
+        m_version = m_settings.value("App/Version").toString();
+
+
+
     connect(
         &m_downloader,
         &Downloader::finished,
@@ -109,12 +116,13 @@ void Updater::start()
 {
     QString temp = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     m_tempDirectory = QDir(temp).filePath("BeanChatUpdater");
+    appendLog("current version is: "+m_version);
 
 
     setState(State::ParsingArguments);
     setTitle("Starting...");
     setDescription("Reading launch options");
-    appendLog("reading launch options:");
+    appendLog("received launch options:");
 
     QString receivedArgs;
     if(!m_arguments.parse(receivedArgs))
@@ -123,7 +131,18 @@ void Updater::start()
         return;
     }
 
-    m_installDirectory = m_arguments.installDirectory();
+    if(m_arguments.currentVersion().isNull())
+    {
+        //version not specified lets read ours
+        m_arguments.setCurrentVersion(m_version);
+    }
+
+    m_installDirectory = QCoreApplication::applicationDirPath();
+    if (!m_arguments.installDirectory().isEmpty())
+    {
+        m_installDirectory = m_arguments.installDirectory();
+    }
+
 
     appendLog(receivedArgs);
     if (m_arguments.repair())
@@ -139,7 +158,7 @@ void Updater::start()
 
         m_downloader.download(
             Downloader::DownloadType::LatestResponse,
-            QUrl("https://beanchat1.ir/bc/api/latest.php?platform=windows-x64&version=0.40.5"));
+            QUrl("https://beanchat.ir/bc/api/latest.php?platform=windows-x64&version=0.40.5"));
     }
 
 
@@ -317,6 +336,11 @@ void Updater::installFiles()
 
     appendLog("Installation complete.");
 
+    //update qsettings app version
+    m_settings.setValue("App/Version",m_latestResponse.latestVersion().toString());
+
+
+
     setState(State::Launching);
 
 
@@ -327,7 +351,8 @@ void Updater::installFiles()
 
 void Updater::launchApplication()
 {
-    QString exe = QDir(m_installDirectory).filePath("appBeanChat.exe");
+    // QString exe = QDir(m_installDirectory).filePath("appBeanChat.exe");
+    QString exe = QDir(QCoreApplication::applicationDirPath()).filePath("appBeanChat.exe");
 
     setState(State::Launching);
     setTitle("Launching..");
@@ -340,7 +365,7 @@ void Updater::launchApplication()
         appendLog("Failed to launch "+exe);
 
         // setState(State::Error);
-        return;
+        // return;
     }
 
     appendLog("BeanChat launched.");
@@ -374,7 +399,7 @@ void Updater::startRepair()
     appendLog("Repair mode");
 
     QString manifest =
-        QString("https://beanchat1.ir/bc/manifests/windows-x64/%1.json")
+        QString("https://beanchat.ir/bc/manifests/windows-x64/%1.json")
             .arg(m_arguments.currentVersion().toString());
 
     m_downloader.download(
