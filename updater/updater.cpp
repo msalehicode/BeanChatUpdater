@@ -9,13 +9,6 @@
 Updater::Updater(QObject *parent)
     : QObject(parent)
 {
-    if(!m_settings.contains("App/Version"))
-        launchApplication(); //its first launch we dont know version cant call update check, so let beanChat run and on next launch would know what is current version
-    else
-        m_version = m_settings.value("App/Version").toString();
-
-
-
     connect(
         &m_downloader,
         &Downloader::finished,
@@ -32,23 +25,32 @@ Updater::Updater(QObject *parent)
                 if(!m_latestResponse.load(data))
                 {
                     setState(State::Error);
-                    appendLog("error: latestResponse cant load.");
+                    setTitle("Error");
+                    setDescription("failed to get latest");
+                    appendLog("error: can't load latest.");
+                    emit showCloseButton();
                     return;
                 }
 
                 if(!m_latestResponse.success())
                 {
                     setState(State::Error);
-                    appendLog("error: latestResponse wasn't successful.");
+                    setTitle("Error");
+                    setDescription("failed to get latest");
+                    appendLog("error: latest response wasn't successful.");
+                    emit showCloseButton();
+                    emit logChanged();
                     return;
                 }
 
                 if(!m_latestResponse.updateAvailable())
                 {
+                    setTitle("Already up to date");
+                    setDescription("your app is already up to date");
                     appendLog("Already up to date.");
-                    setTitle("Done");
-                    setDescription("Already up to date");
-                    setState(State::Launching);
+                    setState(State::Finished);
+                    emit nothingToDo();
+                    emit logChanged();
                     launchApplication();
                     return;
                 }
@@ -56,6 +58,7 @@ Updater::Updater(QObject *parent)
                 setState(State::DownloadingManifest);
                 setTitle("Downloading manifest");
                 setDescription("Reading update information");
+                appendLog("Downloading manifest");
 
                 m_downloader.download(
                     Downloader::DownloadType::Manifest,
@@ -69,19 +72,30 @@ Updater::Updater(QObject *parent)
                 if(!m_manifest.load(data))
                 {
                     setState(State::Error);
+                    setTitle("Error");
+                    setDescription("failed to load manifest");
+                    appendLog("can't load manifest.");
+                    emit showCloseButton();
+                    emit logChanged();
                     return;
                 }
 
-                appendLog("Manifest loaded.");
                 setState(State::DownloadingManifest);
                 setTitle("Downloading manifest");
                 setDescription("Reading update information");
+                appendLog("Manifest loaded.");
 
 
                 //add version directory to temp
                 m_tempDirectory = QDir(m_tempDirectory).filePath(m_manifest.version().toString());
-                QDir().mkpath(m_tempDirectory);
-
+                if(!QDir().mkpath(m_tempDirectory))
+                {
+                    appendLog("failed to create temporary directory.");
+                }
+                else
+                {
+                    appendLog("temporary directory created.");
+                }
 
                 compareLocalFiles();
 
@@ -105,9 +119,12 @@ Updater::Updater(QObject *parent)
         this,
         [this](const QString &error)
         {
-            appendLog("error: "+ error);
-
             setState(State::Error);
+            setTitle("Network Error");
+            setDescription(error);
+            appendLog("network error: "+ error);
+            emit showCloseButton();
+            emit logChanged();
         });
 }
 
@@ -116,35 +133,65 @@ void Updater::start()
 {
     QString temp = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     m_tempDirectory = QDir(temp).filePath("BeanChatUpdater");
-    appendLog("current version is: "+m_version);
 
 
     setState(State::ParsingArguments);
     setTitle("Starting...");
-    setDescription("Reading launch options");
-    appendLog("received launch options:");
+    setDescription("Reading launch arguments");
+    appendLog("received launch arguments are:");
 
     QString receivedArgs;
     if(!m_arguments.parse(receivedArgs))
     {
         setState(State::Error);
+        setTitle("Invalid arguments");
+        setDescription("missing arguments, please try again");
+        appendLog("failed: missing arguments (version is a must)");
+        emit showCloseButton();
+        emit logChanged();
         return;
     }
+    appendLog(receivedArgs);
 
+
+    //version didnt pass by argument try to find it from QSettings
     if(m_arguments.currentVersion().isNull())
     {
-        //version not specified lets read ours
-        m_arguments.setCurrentVersion(m_version);
+        appendLog("current version isn't provided, let's try find it");
+
+        //try to read version from settings
+        QString foundVersion="";
+        if(m_settings.contains("App/Version"))
+        {
+            foundVersion=m_settings.value("App/Version","").toString();
+            if(!foundVersion.isEmpty())
+            {
+                m_arguments.setCurrentVersion(foundVersion);
+                appendLog("found version: "+foundVersion);
+            }
+        }
+        else
+        {
+            setState(State::Error);
+            setTitle("Invalid version");
+            setDescription("if you've never run BeanChat.exe run it then run updater manually  OR  *update by  BeanChat -> settings -> update*");
+            appendLog("failed to read App/Version, you must first launch app OR let BeanChat run updater (go to settings -> update)");
+            emit showCloseButton();
+            emit logChanged();
+            return;
+        }
     }
+
+    appendLog("current version is: "+m_arguments.currentVersion().toString());
 
     m_installDirectory = QCoreApplication::applicationDirPath();
     if (!m_arguments.installDirectory().isEmpty())
     {
         m_installDirectory = m_arguments.installDirectory();
+        appendLog("install directory not speicified, assuming it's: " + m_installDirectory);
     }
 
 
-    appendLog(receivedArgs);
     if (m_arguments.repair())
     {
         startRepair();
@@ -153,31 +200,30 @@ void Updater::start()
     {
         setState(State::DownloadingLatestResponse);
         setTitle("Checking for updates");
-        setDescription("Contacting BeanChat server");
-        appendLog("Connecting BeanChat server");
+        QUrl targetUrl(m_latestPath);
+        setDescription("Contacting to "+targetUrl.host());
+        appendLog("Connecting to "+m_latestPath);
 
         m_downloader.download(
             Downloader::DownloadType::LatestResponse,
-            QUrl("https://beanchat.ir/bc/api/latest.php?platform=windows-x64&version=0.40.5"));
+            QUrl(m_latestPath + "?platform=" + m_platform
+                 + "&version=" + m_arguments.currentVersion().toString()));
     }
-
-
-
-
 }
 
-void Updater::skipUpdate()
+void Updater::cancelUpdate()
 {
-    setState(State::Launching);
-    appendLog("updated skipped.. launching...");
-    setTitle("Update Skipped, Launching...");
-    setDescription("Update skipped");
-    launchApplication();
+    setState(State::Canceled);
+    setTitle("Update Canceled");
+    setDescription("");
+    appendLog("update canceled.");
+    emit updatedCanceled();
+    emit logChanged();
 }
 
 void Updater::confirmUpdate()
 {
-    appendLog("updated confirmed updating...");
+    appendLog("update confirmed, let's proceed...");
     m_currentDownload = 0;
     downloadNextFile();
 }
@@ -185,31 +231,26 @@ void Updater::confirmUpdate()
 
 void Updater::compareLocalFiles()
 {
-    appendLog("===== Comparing Files =====");
-
     setState(State::ComparingFiles);
     setTitle("Comparing files");
     setDescription("Looking for changed files");
+    appendLog("===== Comparing Files =====");
 
     for(const ManifestFile &file : m_manifest.files())
     {
-        QString localFile =
-            QDir(m_installDirectory)
-                .filePath(file.path);
+        QString localFile = QDir(m_installDirectory).filePath(file.path);
 
         QFileInfo info(localFile);
 
         if(!info.exists())
         {
             appendLog("[MISSING] "+file.path);
-
             m_downloadQueue.push_back(file);
 
             continue;
         }
 
-        QString hash =
-            FileHasher::sha256(localFile);
+        QString hash = FileHasher::sha256(localFile);
 
         if(hash.compare(file.sha256, Qt::CaseInsensitive) == 0)
         {
@@ -227,35 +268,39 @@ void Updater::compareLocalFiles()
 
     if(m_downloadQueue.isEmpty())
     {
-        appendLog("Everything is already up to date.");
-        setState(State::Launching);
+        setState(State::Finished);
         setTitle("Done");
         setDescription("Everything is already up to date.");
+        appendLog("Everything is already up to date.");
+        emit nothingToDo();
+        emit logChanged();
         launchApplication();
         return;
     }
 
     appendLog("Need to download" + QString::number(m_downloadQueue.size()) + "files.");
+    qint64 totalSizeToDownload=0;
     for(const auto &file : m_downloadQueue)
     {
         appendLog(file.path + QString::number(file.size));
+        totalSizeToDownload+=file.size;
     }
 
     appendLog("===========================");
 
     setState(State::WaitForConfirmation);
-    setTitle("Please Confirm");
-    setDescription("Cofirm to update or skip");
+    setTitle("Confirm to update");
+    setDescription("please confirm to update or cancel update");
+    appendLog("wait for user to confirm update.");
+    emit confirmUpdateOrCancel(formatBytes(totalSizeToDownload));
+    emit logChanged();
 }
 
 void Updater::verifyDownloadedFiles()
 {
     appendLog("===== Verifying Files =====");
 
-    QString tempDir =
-        QDir::tempPath()
-        + "/BeanChatUpdater/"
-        + m_manifest.version().toString();
+    QString tempDir = QDir::tempPath() + "/BeanChatUpdater/" + m_manifest.version().toString();
 
     for (const ManifestFile &file : m_manifest.files())
     {
@@ -266,7 +311,6 @@ void Updater::verifyDownloadedFiles()
         if (hash.compare(file.sha256, Qt::CaseInsensitive) != 0)
         {
             appendLog("[FAILED] " + file.path);
-
             setState(State::Error);
             return;
         }
@@ -276,11 +320,11 @@ void Updater::verifyDownloadedFiles()
 
     appendLog("All files verified.");
 
-
     // Next step later:
     setState(State::Installing);
     setTitle("Installing");
     setDescription("Replacing application files");
+    appendLog("replacing application files.");
     installFiles();
 }
 
@@ -290,25 +334,18 @@ void Updater::installFiles()
 
     appendLog("===== Installing Files =====");
 
-    QString installDir =
-        m_arguments.installDirectory();
+    QString installDir = m_arguments.installDirectory();
 
-    QString tempDir =
-        QDir::tempPath()
-        + "/BeanChatUpdater/"
-        + m_manifest.version().toString();
+    QString tempDir = QDir::tempPath() + "/BeanChatUpdater/" + m_manifest.version().toString();
 
     for (const ManifestFile &file : m_manifest.files())
     {
-        QString source =
-            tempDir + "/" + file.path;
+        QString source = tempDir + "/" + file.path;
 
-        QString destination =
-            installDir + "/" + file.path;
+        QString destination = installDir + "/" + file.path;
 
         // create folders if needed
-        QDir().mkpath(
-            QFileInfo(destination).absolutePath());
+        QDir().mkpath(QFileInfo(destination).absolutePath());
 
         // remove old file
         if (QFile::exists(destination))
@@ -316,7 +353,6 @@ void Updater::installFiles()
             if (!QFile::remove(destination))
             {
                 appendLog("Couldn't remove"+ destination);
-
                 setState(State::Error);
                 return;
             }
@@ -326,52 +362,57 @@ void Updater::installFiles()
         if (!QFile::copy(source, destination))
         {
             appendLog("Couldn't copy" + source+ "->" + destination);
-
             setState(State::Error);
             return;
         }
 
         appendLog("[INSTALLED] " +file.path);
     }
+    appendLog("Installation completed.");
 
-    appendLog("Installation complete.");
 
     //update qsettings app version
     m_settings.setValue("App/Version",m_latestResponse.latestVersion().toString());
 
 
-
-    setState(State::Launching);
-
-
-    //code here..
-    appendLog("Launching BeanChat..");
+    setState(State::Finished);
+    setTitle("Updated Successfully");
+    setDescription("");
+    emit updatedSuccessfully();
+    emit logChanged();
     launchApplication();
 }
 
 void Updater::launchApplication()
 {
-    // QString exe = QDir(m_installDirectory).filePath("appBeanChat.exe");
-    QString exe = QDir(QCoreApplication::applicationDirPath()).filePath("appBeanChat.exe");
+    QString exe = QDir(m_installDirectory).filePath("BeanChat.exe");
 
-    setState(State::Launching);
-    setTitle("Launching..");
-    setDescription("launcing BeanChat..");
-
-
-
+    // setState(State::Launching);
+    // setTitle("Launching..");
+    // setDescription("launcing BeanChat..");
+    appendLog("trying to launch App BeanChat. launch target: "+exe);
     if (!QProcess::startDetached(exe))
     {
-        appendLog("Failed to launch "+exe);
-
         // setState(State::Error);
-        // return;
+        // setTitle("Failed to launch..");
+        // setDescription("launcing BeanChat failed, please launch it manually.");
+        appendLog("Failed to launch "+exe);
+        // emit showCloseButton();
+        emit logChanged();
+        return;
     }
 
-    appendLog("BeanChat launched.");
+    // setState(State::Finished);
+    // setTitle("Launched.");
+    // setDescription("App BeanChat launched.");
+    appendLog("App BeanChat launched.");
+    emit logChanged();
+    QCoreApplication::quit();
+}
 
-    setState(State::Finished);
-
+void Updater::closeApplication()
+{
+    appendLog("closing");
     QCoreApplication::quit();
 }
 
@@ -380,31 +421,27 @@ QString Updater::log() const
     return m_log;
 }
 
-void Updater::setLog(const QString &newLog)
-{
-    if (m_log == newLog)
-        return;
-    m_log = newLog;
-    emit logChanged();
-}
-
 void Updater::appendLog(const QString &msg)
 {
     m_log += "\n"+ msg;
-    emit logChanged();
+    qDebug() << msg;
+    // emit logChanged();
 }
 
 void Updater::startRepair()
 {
-    appendLog("Repair mode");
+    appendLog("Repair mode is ON");
 
-    QString manifest =
-        QString("https://beanchat.ir/bc/manifests/windows-x64/%1.json")
-            .arg(m_arguments.currentVersion().toString());
+    QString manifest = QString(m_manifestPath + m_platform + "/%1.json")
+                           .arg(m_arguments.currentVersion().toString());
 
     m_downloader.download(
         Downloader::DownloadType::Manifest,
         QUrl(manifest));
+    setState(State::DownloadingManifest);
+    setTitle("Downloading repair manifest");
+    setDescription("downloading manifest to repair version " + m_arguments.currentVersion().toString());
+    appendLog("downloading manifest to repair version " + m_arguments.currentVersion().toString()+ " from " + m_manifestPath);
 }
 
 bool Updater::busy() const
@@ -481,42 +518,50 @@ void Updater::downloadNextFile()
     }
 
     appendLog("===========================");
+    const ManifestFile &file = m_downloadQueue[m_currentDownload];
 
-    const ManifestFile &file =
-        m_downloadQueue[m_currentDownload];
+    QUrl url(m_manifest.baseUrl() + file.path);
 
-    QUrl url(
-        m_manifest.baseUrl() + file.path);
-
-    appendLog("Downloading "+file.path);
 
     setState(State::DownloadingFiles);
     setTitle("Downloading update");
     setProgress(float(m_currentDownload) / m_downloadQueue.size());
-    setDescription("Downloading "+QString::number(m_currentDownload)+ " of "+ QString::number(m_downloadQueue.size()));
-
-    appendLog("from "+url.toString());
+    setDescription("Downloading "+QString::number(m_currentDownload+1)+ " of "+ QString::number(m_downloadQueue.size()));
+    appendLog("Downloading "+file.path + " - URL=" + url.toString());
 
     m_downloader.download(
         Downloader::DownloadType::File,
         url);
 }
 
+QString Updater::formatBytes(qint64 bytes)
+{
+    static const char* units[] = { "B", "KB", "MB", "GB", "TB" };
+
+    double size = static_cast<double>(bytes);
+    int unit = 0;
+
+    while (size >= 1024.0 && unit < 4)
+    {
+        size /= 1024.0;
+        ++unit;
+    }
+
+    return QString("%1 %2")
+        .arg(size, 0, 'f', unit == 0 ? 0 : 2)
+        .arg(units[unit]);
+}
+
 void Updater::fileDownloaded(const QByteArray &data)
 {
-    const ManifestFile &file =
-        m_downloadQueue[m_currentDownload];
+    const ManifestFile &file = m_downloadQueue[m_currentDownload];
 
-    appendLog("Downloaded "+ file.path + QString::number(data.size()) + " bytes");
+    appendLog("Downloaded "+ file.path + " size: " + formatBytes(data.size()));
 
     QString destination = QDir(m_tempDirectory).filePath(file.path);
 
-
     QFileInfo info(destination);
     QDir().mkpath(info.absolutePath());
-
-
-
 
     QFile output(destination);
     if(!output.open(QIODevice::WriteOnly))
@@ -527,8 +572,7 @@ void Updater::fileDownloaded(const QByteArray &data)
     }
     output.write(data);
     output.close();
-    appendLog("file has saved. path: " + destination);
-
+    appendLog("File saved to " + destination);
     m_currentDownload++;
 
     downloadNextFile();

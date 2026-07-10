@@ -26,8 +26,10 @@ public:
 
     void start();
 
-    Q_INVOKABLE void skipUpdate();
+    Q_INVOKABLE void cancelUpdate();
     Q_INVOKABLE void confirmUpdate();
+    Q_INVOKABLE void launchApplication();
+    Q_INVOKABLE void closeApplication();
 
     enum class State
     {
@@ -41,8 +43,9 @@ public:
         DownloadingFiles,
         VerifyingFiles,
         Installing,
-        Launching,
         Finished,
+        Canceled,
+        Launching,
         Error
     };
     Q_ENUM(State)
@@ -64,7 +67,6 @@ public:
     void setBusy(bool newBusy);
 
     QString log() const;
-    void setLog(const QString &newLog);
     void appendLog(const QString &newLog);
 
 signals:
@@ -84,12 +86,21 @@ signals:
 
     void logChanged();
 
+
+    //notify QML
+    void nothingToDo(); //is already up to date
+    void confirmUpdateOrCancel(QString totalSizeToDonwload); //wait for user choice
+    void updatedCanceled();
+    void showCloseButton(); //when update canceled or error occured
+    void updatedSuccessfully(); //updated
+
 private:
     void startRepair();
     void compareLocalFiles();
     void verifyDownloadedFiles();
     void installFiles();
-    void launchApplication();
+
+    QString formatBytes(qint64 bytes); //convert byte to MB B KB ...
 
     Arguments m_arguments;
     LatestResponse m_latestResponse;
@@ -97,7 +108,6 @@ private:
     Downloader m_downloader;
     QVector<ManifestFile> m_downloadQueue;
     QSettings m_settings;
-    QString m_version;
 
     //path
     QString m_tempDirectory;
@@ -111,6 +121,11 @@ private:
     float m_progress = 0.0f;
     bool m_busy = false;
     QString m_log;
+
+    //
+    const QString m_latestPath= "https://beanchat.ir/bc/api/latest.php"; //GET method (?platform=) (&version=)
+    const QString m_manifestPath="https://beanchat.ir/bc/manifests/"; //for repair
+    const QString m_platform="windows-x64";
 
     //download state
     int m_currentDownload = 0;

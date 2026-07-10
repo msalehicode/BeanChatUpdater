@@ -10,9 +10,11 @@ Window
     height: 480
     visible: true
     title: qsTr("BeanChatUpdater")
-    color:"#05070b"
+    color:"#313338"
     Column
     {
+        width: parent.width/1.50
+        height: parent.height
         anchors.centerIn: parent
         spacing: 18
 
@@ -36,11 +38,39 @@ Window
             value: updater.progress
         }
 
+        Text
+        {
+            text: "Log:"
+            opacity: 0.7
+            color:"white"
+        }
         ScrollView
         {
             id: logScroll
             width: parent.width
             height: 180
+
+            ScrollBar.vertical: ScrollBar {
+                   width: 8
+
+                   policy: ScrollBar.AsNeeded
+
+                   contentItem: Rectangle {
+                       implicitWidth: 8
+                       radius: width / 2
+                       color: parent.pressed
+                                ? "#7289DA"
+                                : parent.hovered
+                                  ? "#5B6EAE"
+                                  : "#4E5D94"
+                   }
+
+                   background: Rectangle {
+                       radius: width / 2
+                       color: "#1E1F22"
+                       opacity: 0.5
+                   }
+               }
 
             TextArea
             {
@@ -50,20 +80,44 @@ Window
                 wrapMode: TextEdit.Wrap
             }
         }
-    }
 
-    Connections
-    {
-        target:updater
-        onStateChanged: function()
+
+
+        Button
         {
-            if(updater.state===UpdaterState.WaitForConfirmation)
-                confirmToUpdate.open()
-            else if(updater.state===UpdaterState.Error)
-                failedToUpdatePopup.open()
-        }
-    }
+            id:closeButton
+            text: "Close"
+            visible: false
+            anchors.horizontalCenter: parent.horizontalCenter
 
+            onClicked:
+            {
+                updater.closeApplication()
+            }
+
+            background: Rectangle
+            {
+                radius: 4
+
+                color: closeButton.down
+                       ?  "#4752C4"
+                       : "#5865F2"
+
+                border.width: 1
+                border.color: "#555"
+            }
+
+            contentItem: Text
+            {
+                text: parent.text
+                color: "white"
+
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+
+    }
 
     Popup
     {
@@ -96,7 +150,7 @@ Window
 
             Text
             {
-                text: "Failed to check for update"
+                text: "Failed to update"
                 color: "white"
                 font.pixelSize: 24
                 font.bold: true
@@ -107,7 +161,7 @@ Window
 
             Text
             {
-                text: "please check your network or try again later"
+                text: "please check your network or try again later\n read log for more information."
                 color: "#b5bac1"
                 Layout.alignment: Qt.AlignHCenter
                 Layout.maximumWidth: parent.width
@@ -124,7 +178,7 @@ Window
                 Layout.alignment: Qt.AlignHCenter
                 onClicked:
                 {
-                    updater.skipUpdate();
+                    closeButton.visible=true
                     failedToUpdatePopup.close()
                 }
 
@@ -158,6 +212,7 @@ Window
     {
         id: confirmToUpdate
 
+        property string updateSize;
         modal: true
         focus: true
 
@@ -190,9 +245,20 @@ Window
                 elide: Text.ElideRight
             }
 
+
             Text
             {
-                text: "an update is available, please choose update or skip"
+                text: "Update size " +confirmToUpdate.updateSize
+                color: "#b5bac1"
+                font.pixelSize: 20
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: parent.width
+                elide: Text.ElideRight
+            }
+
+            Text
+            {
+                text: "Update is available, please choose update or cancel"
                 color: "#b5bac1"
                 Layout.alignment: Qt.AlignHCenter
                 Layout.maximumWidth: parent.width
@@ -210,12 +276,12 @@ Window
                 Button
                 {
                     id:cancelButton
-                    text: "Skip"
+                    text: "Cancel"
                     Layout.fillWidth: true
 
                     onClicked:
                     {
-                        updater.skipUpdate();
+                        updater.cancelUpdate();
                         confirmToUpdate.close()
                     }
 
@@ -276,6 +342,38 @@ Window
                     }
                 }
             }
+        }
+    }
+
+
+
+    Connections
+    {
+        target:updater
+        onNothingToDo: function()
+        {
+            closeButton.visible=true
+        }
+
+        onConfirmUpdateOrCancel: function(sizeToDownload)
+        {
+            confirmToUpdate.updateSize=sizeToDownload
+            confirmToUpdate.open()
+        }
+
+        onUpdatedCanceled: function()
+        {
+            closeButton.visible=true
+        }
+
+        onShowCloseButton: function()
+        {
+            failedToUpdatePopup.open() //show a popup say error check logs.
+        }
+
+        onUpdatedSuccessfully: function()
+        {
+            closeButton.visible=true
         }
     }
 

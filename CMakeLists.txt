@@ -38,13 +38,12 @@ qt_add_qml_module(appBeanChatUpdater
         updater/latestresponse.h updater/latestresponse.cpp
         updater/filehasher.h updater/filehasher.cpp
         updater/fileverifier.h updater/fileverifier.cpp
+        SOURCES updater/logger.h updater/logger.cpp
 
 )
 
 
 set_target_properties(appBeanChatUpdater PROPERTIES
-    OUTPUT_NAME "BeanChat"
-
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
