@@ -283,7 +283,7 @@ void Updater::compareLocalFiles()
     qint64 totalSizeToDownload=0;
     for(const auto &file : m_downloadQueue)
     {
-        appendLog(file.path + QString::number(file.size));
+        appendLog(file.path + " " + formatBytes(file.size));
         totalSizeToDownload+=file.size;
     }
 
@@ -331,11 +331,9 @@ void Updater::verifyDownloadedFiles()
 
 void Updater::installFiles()
 {
-    setState(State::Installing);
-
     appendLog("===== Installing Files =====");
 
-    QString installDir = m_arguments.installDirectory();
+    // QString installDir = m_arguments.installDirectory();
 
     QString tempDir = QDir::tempPath() + "/BeanChatUpdater/" + m_manifest.version().toString();
 
@@ -343,12 +341,16 @@ void Updater::installFiles()
     {
         QString source = tempDir + "/" + file.path;
 
-        QString destination = installDir + "/" + file.path;
+
+        QString destination = m_installDirectory + "/" + file.path;
+        appendLog("Installing: " + file.path);
 
         // create folders if needed
+        appendLog("Creating directory");
         QDir().mkpath(QFileInfo(destination).absolutePath());
 
         // remove old file
+        appendLog("Removing old file: ");
         if (QFile::exists(destination))
         {
             if (!QFile::remove(destination))
@@ -360,9 +362,10 @@ void Updater::installFiles()
         }
 
         // copy new file
+        appendLog("Copying file " + source + " to " + destination);
         if (!QFile::copy(source, destination))
         {
-            appendLog("Couldn't copy" + source+ "->" + destination);
+            appendLog("Couldn't copy" + source+ " -> " + destination);
             setState(State::Error);
             return;
         }
@@ -425,8 +428,8 @@ QString Updater::log() const
 void Updater::appendLog(const QString &msg)
 {
     m_log += "\n"+ msg;
-    qDebug() << msg;
-    // emit logChanged();
+    // qDebug() << msg;
+    emit logChanged();
 }
 
 void Updater::startRepair()

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(BeanChatUpdater VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(UPDATER_VERSION 1.0.1)
+set(UPDATER_VERSION 1.0.2)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 
