@@ -254,7 +254,8 @@ void Updater::compareLocalFiles()
 
         if(hash.compare(file.sha256, Qt::CaseInsensitive) == 0)
         {
-            appendLog("[OK] " + file.path);
+            // appendLog("[OK] " + file.path);
+            qDebug() << "ok " << file.path;
         }
         else
         {
@@ -278,7 +279,7 @@ void Updater::compareLocalFiles()
         return;
     }
 
-    appendLog("Need to download" + QString::number(m_downloadQueue.size()) + "files.");
+    appendLog("Need to download " + QString::number(m_downloadQueue.size()) + " files.");
     qint64 totalSizeToDownload=0;
     for(const auto &file : m_downloadQueue)
     {
@@ -302,7 +303,7 @@ void Updater::verifyDownloadedFiles()
 
     QString tempDir = QDir::tempPath() + "/BeanChatUpdater/" + m_manifest.version().toString();
 
-    for (const ManifestFile &file : m_manifest.files())
+    for (const ManifestFile &file : m_downloadQueue)
     {
         QString path = tempDir + "/" + file.path;
 
@@ -338,7 +339,7 @@ void Updater::installFiles()
 
     QString tempDir = QDir::tempPath() + "/BeanChatUpdater/" + m_manifest.version().toString();
 
-    for (const ManifestFile &file : m_manifest.files())
+    for (const ManifestFile &file : m_downloadQueue)
     {
         QString source = tempDir + "/" + file.path;
 
